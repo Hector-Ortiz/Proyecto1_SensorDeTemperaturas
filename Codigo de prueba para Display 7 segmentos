@@ -1,0 +1,48 @@
+// codigo que use para hacer pruebas con el display de 7 segmentos, 4 digitos, y aplicar el uso del multiplexado
+const int PinesDelDisplay[] = {13, 12, 14, 27, 26, 25, 33, 32}; // Pines del display que van de la A a la G con el punto
+const int Salidas[] = {23, 18, 19, 21}; // Los 4 numeros del display
+const byte Patron[] = { // El patron de los numeros que pasan por el display
+  B00111111,  // 0
+  B00000110,  // 1
+  B01011011,  // 2
+  B01001111,  // 3
+  B01100110,  // 4
+  B01101101,  // 5
+  B01111101,  // 6
+  B00000111,  // 7
+  B01111111,  // 8
+  B01101111   // 9
+};
+void setup() {
+  // Configura los pines como salidas
+  for (int i = 0; i < 8; i++) {
+    pinMode(PinesDeDisplay[i], OUTPUT);
+  }
+  for (int i = 0; i < 4; i++) {
+    pinMode(Salidas[i], OUTPUT);
+  }
+}
+
+void loop() {
+  // Muestra los números del 0 al 9 en los dígitos del display
+  for (int i = 0; i < 10; i++) {
+    for (int digit = 0; digit < 4; digit++) {
+      // Enciende el dígito actual
+      digitalWrite(Salidas[digit], LOW);
+      
+      // Enciende los segmentos para mostrar el número
+      for (int segment = 0; segment < 8; segment++) {
+        digitalWrite(PinesDelDisplay[segment], !(Patron[i] >> segment & 1)); // Se usa negación debido a que es cátodo común
+      }
+      
+      // El tiempo para encender y apagar los displays para ver como este muestra los numeros
+      delay(0.5);
+      
+      // Apaga los segmentos y el dígito
+      for (int segment = 0; segment < 8; segment++) {
+        digitalWrite(PinesDelDisplay[segment], HIGH);
+      }
+      digitalWrite(Salidas[digit], HIGH);
+    }
+  }
+}
