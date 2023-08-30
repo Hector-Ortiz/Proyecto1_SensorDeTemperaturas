@@ -1,0 +1,14 @@
+// Definición de pines
+const int lm35Pin = 36;  // Cambia este número al pin que estés utilizando
+
+void setup() {
+  Serial.begin(115200);  // Inicializa la comunicación serial
+}
+void loop(){
+  int rawValue = analogRead(lm35Pin); // lectura del sensor de temperatura LM35
+  int millivolts = rawValue * (3300.0 / 4095.0); // calculo del sensor de temperatura para volver voltaje en temperatura
+  float celsius = (millivolts) / 10.0; // conversion para volver la temperatura en celsius por cada 10mV
+
+  Serial.print("Temperatura (C): ");
+  Serial.println(celsius); // calculo total de la temperatura en celsius para el serial monitor
+}
