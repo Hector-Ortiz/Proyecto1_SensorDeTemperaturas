@@ -1,0 +1,34 @@
+// BIBLIOTECA PARA MOVER EN EL ESP32
+#include <Arduino.h>
+
+// Definición de pines
+const int servoPin = 2;  // pin del servomotor que se va a usar
+
+// Configuración inicial
+void setup() {
+  pinMode(servoPin, OUTPUT);  // Configura el pin del servo como salida
+  Serial.begin(115200);  // inicio de la comunicación serial
+}
+
+// Función para generar el pulso PWM para mover el servomotor
+void moveServo(int angle) {
+  int pulseWidth = map(angle, 0, 180, 500, 2400);  // Mapea el ángulo al ancho de pulso necesario
+  digitalWrite(servoPin, HIGH);  // Activa la señal
+  delayMicroseconds(pulseWidth);  // Mantiene la señal activa durante el tiempo del pulso
+  digitalWrite(servoPin, LOW);   // Desactiva la señal
+  delay(20);  // Pequeño retardo para estabilidad
+}
+
+void loop() {
+  // Mueve el servo de 0 a 180 grados
+  for (int angle = 0; angle <= 180; angle++) {
+    moveServo(angle);
+    delay(500);  // Espera medio segundo entre movimientos
+  }
+
+  // Mueve el servo de 180 a 0 grados
+  for (int angle = 180; angle >= 0; angle--) {
+    moveServo(angle);
+    delay(500);  // Espera medio segundo entre movimientos
+  }
+}
