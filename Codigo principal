@@ -1,0 +1,162 @@
+// *****************Hector Andres Ortiz Reyes***************** //
+// *Proyecto #1 sensor de temperatura con ESP32 y ADAFRUIT.IO* // 
+// **********ELECTRONICA DIGITAL #2 --- seccion # 10********** //
+// ******************29 de agosto del 2023******************** //
+
+/************************** Libreria para usar Adafruit.IO ***********************************/
+#include "config.h"
+#include <AdafruitIO_WiFi.h>
+/************************ Pines de todo el circuito *******************************/
+
+float temperatura = 0; // la señal de temperatura que recibira Adafruit.IO
+AdafruitIO_Feed *CanalTemp = io.feed("temperatura");
+
+const int PinesDisplayABCDEFG[] = {17, 18, 19, 21, 22, 23, 5, 2}; // pines en donde esta el display con el orden A, B, C, D, E, F, G, DP
+const int DigitosDisplay[] = {13, 14, 15}; // Los 3 digitos que se usaran para mostrar los numeros de temperatura
+
+const int lm35Pin = 36; // sensor LM35
+const int verde = 32; // LED de color verde
+const int amarillo = 33; // LED de color amarillo
+const int rojo = 34; // LED de color rojo
+const int servomotor = 25; 
+const int boton = 26;
+const int pwmRange = 180; // señal del pulso PWM 
+
+/************************ Libreria para la señal PWM del servomotor *******************************/
+hw_timer_t *timer = NULL;
+volatile uint32_t pulseWidth = 1500;
+volatile bool pulseState = false;
+// la fuerza de los pulsos que liberara dependiendo del angulo que se este buscando 
+void IRAM_ATTR onTimer() {
+  if (pulseState) {
+    digitalWrite(servomotor, LOW);
+    timerAlarmWrite(timer, 20000 - pulseWidth, true);
+    pulseState = false;
+  } else {
+    digitalWrite(servomotor, HIGH);
+    timerAlarmWrite(timer, pulseWidth, true);
+    pulseState = true;
+  }
+}
+// angulos que posee el servomotor siendo el minimo 0 y el maximo 180 grados
+void setServoAngle(int angle) {
+  if (angle < 0) angle = 0;
+  if (angle > 180) angle = 180;
+  pulseWidth = map(angle, 0, 180, 1000, 2000);
+}
+/************************ SetUp para inputs, outputs, y menu de espera de Adafruit.IO *******************************/
+void setup() {
+
+  Serial.begin(115200); // señal de inicio para el ESP32
+
+  while (!Serial); // menu de espera en lo que se conecta el ESP32 a la pagina ADAFRUIT.IO
+
+  Serial.print("Comenzando Adafruit"); // mensaje de espera para conectarse a ADAFRUIT.IO
+
+  // conexion a io.adafruit.com
+  io.connect();
+
+  // puntos que se imprimen en lo que se envian las primeras señales al FEED
+  while (io.status() < AIO_CONNECTED) {
+    Serial.print("OI");
+    delay(500); // delay de 500 milisegundos
+  }
+
+  // conectado 
+  Serial.println();
+  Serial.println(io.statusText());
+
+  pinMode(verde, OUTPUT); // Pin de salida para el led de color verde
+  pinMode(amarillo, OUTPUT); // Pin de salida para el led de color amarillo
+  pinMode(rojo, OUTPUT); // Pin de salida para el led de color rojo
+  pinMode(boton, INPUT_PULLUP); // Pin de entrada del boton en estado PULLUP
+// todos los timers que tiene el servomotor para enviar las señales PWM con control dependiendo de lo que se necesita//
+  pinMode(servomotor, OUTPUT); // pin de salida del servomotor
+  timer = timerBegin(0, 80, true);
+  timerAttachInterrupt(timer, &onTimer, true);
+  timerAlarmWrite(timer, pulseWidth, true);
+  timerAlarmEnable(timer);
+
+  for (int i = 0; i < 8; i++) {
+    pinMode(PinesDisplayABCDEFG[i], OUTPUT); // todos los pines de las letras de los displays 
+  }
+  for (int i = 0; i < 4; i++) {
+    pinMode(DigitosDisplay[i], OUTPUT); // todos los digitos que tiene el display
+  }
+}
+/************************ Libreria del Display con los 10 numeros *******************************/
+void displayDigit(int digit, int value) {
+  const byte digitPatterns[] = {
+    B00111111,  // 0
+    B00000110,  // 1
+    B01011011,  // 2
+    B01001111,  // 3
+    B01100110,  // 4
+    B01101101,  // 5
+    B01111101,  // 6
+    B00000111,  // 7
+    B01111111,  // 8
+    B01101111   // 9
+  };
+
+  for (int i = 0; i < 8; i++) {
+    digitalWrite(PinesDisplayABCDEFG[i], !(digitPatterns[value] & (1 << i)));
+  }
+}
+/************************ Loops *******************************/
+void loop() {
+  io.run(); // empieza a correr el codigo en ADAFRUIT.IO
+
+  int rawValue = analogRead(lm35Pin); // lectura del sensor de temperatura LM35
+  int millivolts = rawValue * (3300.0 / 4095.0); // calculo del sensor de temperatura para volver voltaje en temperatura
+  float celsius = (millivolts) / 10.0; // conversion para volver la temperatura en celsius por cada 10mV
+
+  Serial.print("Temperatura (C): ");
+  Serial.println(celsius); // calculo total de la temperatura en celsius para el serial monitor
+
+  // calculo total de la temperatura en celsius que va hacia ADAFRUIT.IO
+  Serial.print("sending -> ");
+  Serial.println(celsius);
+  CanalTemp->save(celsius);
+
+  int tempInteger = static_cast<int>(celsius); // variable para mandar la temperatura al display
+
+  // Mostrar temperatura en el Display de 7 segmentos
+  int tempHundreds = tempInteger / 100;
+  int tempTens = (tempInteger / 10) % 10;
+  int tempOnes = tempInteger % 10;
+// Todos los digitos que se imprimen constantemente en los displays por medio del catodo comun, encendiendo y apagando cada 5 milisegundos
+  displayDigit(0, tempHundreds);
+  digitalWrite(DigitosDisplay[0], LOW);
+  delay(5);
+  digitalWrite(DigitosDisplay[0], HIGH);
+
+  displayDigit(1, tempTens);
+  digitalWrite(DigitosDisplay[1], LOW);
+  delay(5);
+  digitalWrite(DigitosDisplay[1], HIGH);
+
+  displayDigit(2, tempOnes);
+  digitalWrite(DigitosDisplay[2], LOW);
+  delay(5);
+  digitalWrite(DigitosDisplay[2], HIGH);
+
+// señal del servomotor y de los leds segun la temepratura del LM35
+  if (celsius < 15) { // si la temperatura es inferior a los 30 grados se encendera el led verde y el servomotor se movera a 150 grados
+    digitalWrite(verde, HIGH);
+    digitalWrite(amarillo, LOW);
+    digitalWrite(rojo, LOW);
+    setServoAngle(150);
+  } else if (celsius >= 15 && celsius < 20) { // si la temperatura es mayor que 30 grados y menor que 35 grados se encendera el led amarillo y el servomotor se movera a 90 grados
+    digitalWrite(verde, LOW);
+    digitalWrite(amarillo, HIGH);
+    digitalWrite(rojo, LOW);
+    setServoAngle(90);
+  } else { // si la temperatura es mayor a los 35 grados se encendera el led rojo y el servomotor se movera a 30 grados
+    digitalWrite(verde, LOW);
+    digitalWrite(amarillo, LOW);
+    digitalWrite(rojo, HIGH);
+    setServoAngle(30);
+  }
+  delay(3000); // delay de 1 segundo para que se imprima el dato en todo
+}
